@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <curl/curl.h>
+#include <atomic>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -11,10 +12,83 @@
 #include <string>
 #include <thread>
 
-struct LinkDetail {
-    std::string base;
-    std::string filename;
-};
+
+namespace detail {
+
+    size_t find_nth(std::string const & haystack, 
+                    size_t pos, std::string const & needle, size_t nth) 
+    {
+        size_t found_pos = haystack.find(needle, pos);
+        if(0 == nth || std::string::npos == found_pos)  return found_pos;
+        return find_nth(haystack, found_pos+1, needle, nth-1);
+    }
+
+    // A very basic URL type
+    struct URL {
+
+        explicit URL(std::string url)
+        {
+            // find third slash
+            auto found = find_nth(url, 0, "/", 2);
+            if(found == -1) {
+                throw std::runtime_error("No path component!");
+            }
+            m_base.assign(std::begin(url), std::begin(url) + found);
+            m_path.assign(std::begin(url) + found, std::end(url));
+        }
+
+        URL(std::string const & base,
+            std::string const & path)
+        : m_base(base)
+        , m_path(path)
+        {
+        }
+
+        void addPathBit(std::string const & path)
+        {
+            // Check if absolute. If so, should replace
+            // while path
+            if(path[0] == '/') {
+                m_path = path;
+            } 
+            // Relative, just do a simple append
+            else {
+                if(m_path.back() != '/') {
+                    m_path = m_path + "/" + path;
+                } else {
+                    m_path = m_path + path;
+                }
+            }
+        }
+
+        std::string getBase() const
+        {
+            return m_base;
+        }
+
+        std::string getPath() const
+        {
+            return m_path;
+        }
+
+        std::string getFilename() const
+        {
+            auto found = m_path.find_last_of("/");
+            return {std::begin(m_path) + found + 1, std::end(m_path)};
+        }
+
+        std::string getWholeThing() const
+        {
+            return m_base + m_path;
+        }
+
+      private:
+        std::string m_base;
+        std::string m_path;
+
+
+    };
+}
 
 size_t write_data(const char * data, size_t size, size_t count, std::ostream * stream) {
     stream->write(data, count);
@@ -44,11 +118,12 @@ void pull_one_url(std::string const & url,
     }
 }
 
-void download_all(std::vector<LinkDetail> const & links)
+void download_all(std::vector<detail::URL> const & links)
 {
 
     std::vector<std::thread> downloadThreads;
     int const nThreads = 10;
+    std::atomic<long> counter(0);
 
     for(auto const & it : links) {
 
@@ -56,18 +131,22 @@ void download_all(std::vector<LinkDetail> const & links)
         // new download thread
         if(downloadThreads.size() < nThreads) {
             downloadThreads.emplace_back([=]{
-                std::ofstream file(it.filename, std::ios::binary);
-                pull_one_url(it.base + it.filename, &file);
+                std::ofstream file(it.getFilename(), std::ios::binary);
+                pull_one_url(it.getWholeThing(), &file);
                 file.close();
-                std::cout<<it.filename<<" done!"<<std::endl;
+                std::cout<<"="<<std::flush;
+
             });
+            ++counter;
         } 
         // Join on threads
-        else {
+        else if (downloadThreads.size() == nThreads || 
+                 counter == links.size()) {
             for(auto & t : downloadThreads) {
                 t.join();
             }
             downloadThreads.clear();
+            std::cout<<std::endl;
         }
     }
 }
@@ -83,12 +162,21 @@ int main(int argc, char *argv[]) {
     pull_one_url(url, &stream);
     auto const links = extract_hyperlinks(stream.str());
 
+    // The base URL representing webpage
+    detail::URL baseURL(url);
+
     // Process links having particular extension
-    std::vector<LinkDetail> processed;
+    std::vector<detail::URL> processed;
     for (auto const & it : links) {
         if(it.find(argv[2]) != std::string::npos) {
-            LinkDetail ld{url, it};
-            processed.push_back(ld);
+
+            // Find filename part, it multiple
+            // path parts. Ignore parent parts.
+            // The filename will be the final part
+            // after the final slash.
+            auto urlCopy = baseURL;
+            urlCopy.addPathBit(it);
+            processed.push_back(urlCopy);
         }
     }
 
