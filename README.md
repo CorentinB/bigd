@@ -3,13 +3,13 @@
 This is a command-line tool that you can use to concurrently scrape files from a webpage. Usage:
 
 ```
-./bigd --url <URL> --type mp3 --threads 5
+./bigd --url <URL> --type mp3 --threads 5 --depth 0
 ```
 
 will download all files of type mp3 from url `<URL>`. In addition, a threadpool is used to download `threads` 
 number of files at any given moment. Hopefully therefore, bigd should prove quicker than tools like wget.
-
-Finally, recursive downloading is also supported with an optional `--depth` argument. This defaults to 0.
+Finally, recursive downloading is also supported with the `--depth` argument. By default (and as explicitly shown above),
+recursive downloading is disabled, as signified by a 'depth' value of zero.
 
 Tested on a bunch of open directories.
 
