@@ -1,4 +1,7 @@
-// Hack to download all files of given extension on webpage
+// This 'ere software is hacky as fuck. Use at your peril.
+// I'd appreciate a mention if you do. But if you don't,
+// I'm not going to lose sleep over it.
+// Ben Jones in the year of 2018.
 
 #include <boost/program_options.hpp>
 #include <curl/curl.h>
