@@ -1,6 +1,6 @@
 // Hack to download all files of given extension on webpage
 
-#include <stdio.h>
+#include <boost/program_options.hpp>
 #include <curl/curl.h>
 #include <atomic>
 #include <fstream>
@@ -12,6 +12,7 @@
 #include <string>
 #include <thread>
 
+#include <stdio.h>
 
 namespace detail {
 
@@ -88,79 +89,131 @@ namespace detail {
 
 
     };
-}
 
-size_t write_data(const char * data, size_t size, size_t count, std::ostream * stream) {
-    stream->write(data, count);
-    return size * count;
-}
 
-std::set<std::string> extract_hyperlinks(std::string const & text)
-{
-    static std::regex const hl_regex( "<a href=\"(.*?)\">", std::regex_constants::icase  ) ;
-    return { std::sregex_token_iterator( text.begin(), text.end(), hl_regex, 1 ),
-             std::sregex_token_iterator{} } ;
-}
-
-void pull_one_url(std::string const & url,
-                  std::ostream * stream)
-{
-    CURL *curl;
-    curl = curl_easy_init();
-    if (curl) {
-        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, stream);
-        curl_easy_perform(curl);
-        /* always cleanup */
-        curl_easy_cleanup(curl);
-        stream->flush();
+    size_t write_data(const char * data, size_t size, size_t count, std::ostream * stream) {
+        stream->write(data, count);
+        return size * count;
     }
-}
 
-void download_all(std::vector<detail::URL> const & links)
-{
+    std::set<std::string> extract_hyperlinks(std::string const & text)
+    {
+        static std::regex const hl_regex( "<a href=\"(.*?)\">", std::regex_constants::icase  ) ;
+        return { std::sregex_token_iterator( text.begin(), text.end(), hl_regex, 1 ),
+                 std::sregex_token_iterator{} } ;
+    }
 
-    std::vector<std::thread> downloadThreads;
-    int const nThreads = 10;
-    std::atomic<long> counter(0);
-
-    for(auto const & it : links) {
-
-        // While threads not exhausted, created a
-        // new download thread
-        if(downloadThreads.size() < nThreads) {
-            downloadThreads.emplace_back([=]{
-                std::ofstream file(it.getFilename(), std::ios::binary);
-                pull_one_url(it.getWholeThing(), &file);
-                file.close();
-                std::cout<<"="<<std::flush;
-
-            });
-            ++counter;
-        } 
-        // Join on threads
-        else if (downloadThreads.size() == nThreads || 
-                 counter == links.size()) {
-            for(auto & t : downloadThreads) {
-                t.join();
-            }
-            downloadThreads.clear();
-            std::cout<<std::endl;
+    void pull_one_url(std::string const & url,
+                      std::ostream * stream)
+    {
+        CURL *curl;
+        curl = curl_easy_init();
+        if (curl) {
+            curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, stream);
+            curl_easy_perform(curl);
+            /* always cleanup */
+            curl_easy_cleanup(curl);
+            stream->flush();
         }
     }
+
+    void download_all(std::vector<URL> const & links,
+                      int const nThreads)
+    {
+
+        std::vector<std::thread> downloadThreads;
+        std::atomic<long> counter(0);
+
+        for(auto const & it : links) {
+
+            // While threads not exhausted, created a
+            // new download thread
+            if(downloadThreads.size() < nThreads) {
+                downloadThreads.emplace_back([=]{
+                    std::ofstream file(it.getFilename(), std::ios::binary);
+                    pull_one_url(it.getWholeThing(), &file);
+                    file.close();
+                    std::cout<<"="<<std::flush;
+
+                });
+                ++counter;
+            } 
+            // Join on threads
+            else if (downloadThreads.size() == nThreads || 
+                     counter == links.size() - 1) {
+                for(auto & t : downloadThreads) {
+                    t.join();
+                }
+                downloadThreads.clear();
+                std::cout<<std::endl;
+            }
+        }
+    }
+
+    bool hasType(std::string const & toCheck,
+                 std::vector<std::string> const & types)
+    {
+        for(auto const & type : types) {
+            if(toCheck.find(type) != std::string::npos) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 }
 
 int main(int argc, char *argv[]) {
     
-    // Extract all links from a given webpage
-    std::string url(argv[1]);
+    // Webpage to download from
+    std::string url;
+
+    // Type of file to download
+    std::vector<std::string> types;
+
+    // Number of files to simul. download
+    int threads;
+
+    // Parse nput arguments
+    namespace po = boost::program_options;
+    po::options_description desc("Allowed options");
+    desc.add_options()
+        ("help,h", "produce help message")
+        ("url,u", po::value<std::string>(&url), "page to download from")
+        ("type,t", po::value<std::vector<std::string>>(&types), "type of file to download")
+        ("threads,n", po::value<int>(&threads)->default_value(10), "number of files to simultaneously download")
+    ;
+
+    po::variables_map vm;
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::notify(vm); 
+
+    if (vm.count("help")) {
+        std::cout << desc << std::endl;
+        return 1;
+    }
+
+    if (!vm.count("url")) {
+        std::cout<<desc<<std::endl;
+        return 1;
+    }
+
+    if (!vm.count("type")) {
+        std::cout<<desc<<std::endl;
+        return 1;
+    }
+
+    // auto url = vm.count("url");
     if(url.back() != '/') {
         url.push_back('/');
     }
+
+    // Extract all links from page at url
     std::ostringstream stream;
-    pull_one_url(url, &stream);
-    auto const links = extract_hyperlinks(stream.str());
+    detail::pull_one_url(url, &stream);
+    auto const links = detail::extract_hyperlinks(stream.str());
 
     // The base URL representing webpage
     detail::URL baseURL(url);
@@ -168,7 +221,7 @@ int main(int argc, char *argv[]) {
     // Process links having particular extension
     std::vector<detail::URL> processed;
     for (auto const & it : links) {
-        if(it.find(argv[2]) != std::string::npos) {
+        if(detail::hasType(it, types)) {
 
             // Find filename part, it multiple
             // path parts. Ignore parent parts.
@@ -181,7 +234,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Now do multi-threaded download of all links
-    download_all(processed);
+    detail::download_all(processed, threads);
 
     return 0;
 }
