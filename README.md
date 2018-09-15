@@ -9,6 +9,8 @@ This is a command-line tool that you can use to concurrently scrape files from a
 will download all files of type mp3 from url `<URL>`. In addition, a threadpool is used to download `threads` 
 number of files at any given moment. Hopefully therefore, bigd should prove quicker than tools like wget.
 
+Finally, recursive downloading is also supported with an optional `--depth` argument. This defaults to 0.
+
 Tested on a bunch of open directories.
 
 Note: all files are dumped to the current working directory.

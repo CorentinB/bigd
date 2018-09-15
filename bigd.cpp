@@ -89,10 +89,7 @@ namespace detail {
       private:
         std::string m_base;
         std::string m_path;
-
-
     };
-
 
     size_t write_data(const char * data, size_t size, size_t count, std::ostream * stream) {
         stream->write(data, count);
@@ -125,34 +122,31 @@ namespace detail {
     void download_all(std::vector<URL> const & links,
                       int const nThreads)
     {
-
         std::vector<std::thread> downloadThreads;
         std::atomic<long> counter(0);
 
         for(auto const & it : links) {
-
             // While threads not exhausted, created a
             // new download thread
             if(downloadThreads.size() < nThreads) {
-                downloadThreads.emplace_back([=]{
+                downloadThreads.emplace_back([it]{
                     std::ofstream file(it.getFilename(), std::ios::binary);
                     pull_one_url(it.getWholeThing(), &file);
                     file.close();
                     std::cout<<"="<<std::flush;
-
                 });
                 ++counter;
-            } 
+            }
+
             // Join on threads
-            else if (downloadThreads.size() == nThreads || 
-                     counter == links.size() - 1) {
+            if (downloadThreads.size() == nThreads || counter == links.size()) {
                 for(auto & t : downloadThreads) {
                     t.join();
                 }
-                downloadThreads.clear();
-                std::cout<<std::endl;
+                std::vector<std::thread>().swap(downloadThreads);
             }
         }
+        std::cout<<std::endl;
     }
 
     bool hasType(std::string const & toCheck,
@@ -164,6 +158,50 @@ namespace detail {
             }
         }
         return false;
+    }
+
+    std::set<std::string> getLinks(URL const & url)
+    {
+        std::ostringstream stream;
+        pull_one_url(url.getWholeThing(), &stream);
+        return extract_hyperlinks(stream.str());
+    }
+
+    void deepDive(URL const & url, 
+                  std::vector<std::string> const & types,
+                  int const threads,
+                  int const recursionLevel,
+                  int & currentDepth)
+    {
+
+        std::cout<<"Downloading from: "<<url.getWholeThing()<<std::endl;
+
+        // Extract all links from page at url
+        auto const links = getLinks(url);
+
+        auto theCurrentDepth = currentDepth + 1;
+
+        // Process links having particular extension
+        std::vector<detail::URL> processed;
+        for (auto const & it : links) {
+            auto urlCopy = url;
+            urlCopy.addPathBit(it);
+            if(detail::hasType(it, types)) {
+
+                // Find filename part, it multiple
+                // path parts. Ignore parent parts.
+                // The filename will be the final part
+                // after the final slash.
+                processed.push_back(urlCopy);
+            } else if (currentDepth < recursionLevel) {
+                deepDive(urlCopy, types, threads, recursionLevel, theCurrentDepth);
+            }
+        }
+
+        ++currentDepth;
+
+        // Now do multi-threaded download of all links
+        detail::download_all(processed, threads);
     }
 
 }
@@ -179,6 +217,9 @@ int main(int argc, char *argv[]) {
     // Number of files to simul. download
     int threads;
 
+    // Recursive depth
+    int depth;
+
     // Parse nput arguments
     namespace po = boost::program_options;
     po::options_description desc("Allowed options");
@@ -187,6 +228,7 @@ int main(int argc, char *argv[]) {
         ("url,u", po::value<std::string>(&url), "page to download from")
         ("type,t", po::value<std::vector<std::string>>(&types), "type of file to download")
         ("threads,n", po::value<int>(&threads)->default_value(10), "number of files to simultaneously download")
+        ("depth,d", po::value<int>(&depth)->default_value(0), "recursive depth")
     ;
 
     po::variables_map vm;
@@ -213,31 +255,11 @@ int main(int argc, char *argv[]) {
         url.push_back('/');
     }
 
-    // Extract all links from page at url
-    std::ostringstream stream;
-    detail::pull_one_url(url, &stream);
-    auto const links = detail::extract_hyperlinks(stream.str());
-
     // The base URL representing webpage
     detail::URL baseURL(url);
 
-    // Process links having particular extension
-    std::vector<detail::URL> processed;
-    for (auto const & it : links) {
-        if(detail::hasType(it, types)) {
-
-            // Find filename part, it multiple
-            // path parts. Ignore parent parts.
-            // The filename will be the final part
-            // after the final slash.
-            auto urlCopy = baseURL;
-            urlCopy.addPathBit(it);
-            processed.push_back(urlCopy);
-        }
-    }
-
-    // Now do multi-threaded download of all links
-    detail::download_all(processed, threads);
+    int currentDepth = 0;
+    detail::deepDive(baseURL, types, threads, depth, currentDepth);
 
     return 0;
 }
