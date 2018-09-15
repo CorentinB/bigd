@@ -19,6 +19,6 @@ To compile, you need boost and libcurl, and then something like the following wh
 clang++ -std=c++11 bigd.cpp -lcurl -lboost_program_options -o bigd
 ```
 
-Please create an issue if you find a bug / have an enhacement request. NB. I've not extensively tested this.
+Please create an issue if you find a bug / have an enhancement request. NB. I've not extensively tested this.
 
 Adheres to The Hacky As Fuck Software License.
