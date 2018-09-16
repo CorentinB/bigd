@@ -4,6 +4,7 @@
 // Ben Jones in the year of 2018.
 
 #include <boost/program_options.hpp>
+#include <boost/optional.hpp>
 #include <curl/curl.h>
 #include <atomic>
 #include <fstream>
@@ -132,7 +133,8 @@ namespace detail {
     }
 
     void download_all(std::vector<URL> const & links,
-                      int const nThreads)
+                      int const nThreads,
+                      ::boost::optional<std::ofstream> & archiveStream)
     {
         std::vector<std::thread> downloadThreads;
         std::atomic<long> counter(0);
@@ -156,6 +158,9 @@ namespace detail {
                     t.join();
                 }
                 std::vector<std::thread>().swap(downloadThreads);
+            }
+            if(archiveStream) {
+                (*archiveStream) << it.getWholeThing().c_str() << std::endl;
             }
         }
         std::cout<<std::endl;
@@ -190,11 +195,26 @@ namespace detail {
         return false;
     }
 
+    std::set<std::string> 
+    retrieveArchived(std::string const & archivePath)
+    {
+        std::set<std::string> toRetrieve;
+        if(!archivePath.empty()) {
+            std::ifstream in(archivePath);
+            std::string str; 
+            while (std::getline(in, str)) {
+                toRetrieve.insert(str);
+            }
+        }
+        return toRetrieve;
+    }
+
     void deepDive(URL const & url, 
                   std::vector<std::string> const & types,
                   int const threads,
                   int const recursionLevel,
-                  int & currentDepth)
+                  int & currentDepth,
+                  std::string const & archivePath)
     {
 
         auto const wholeThing = url.getWholeThing();
@@ -211,6 +231,10 @@ namespace detail {
 
         // Extract all links from page at url
         auto const links = getLinks(url);
+
+        // Check to see which links have already been downloaded
+        // by consulting archive file if one was supplied
+        auto const archiveSet = retrieveArchived(archivePath);
 
         auto theCurrentDepth = currentDepth + 1;
 
@@ -230,16 +254,29 @@ namespace detail {
                 // path parts. Ignore parent parts.
                 // The filename will be the final part
                 // after the final slash.
-                processed.push_back(urlCopy);
+                // Also, only add to processed if
+                // not already archived.
+                auto found = archiveSet.find(urlCopy.getWholeThing());
+                if(found == std::end(archiveSet)) {
+                    processed.push_back(urlCopy);
+                }
             } else if (currentDepth < recursionLevel) {
-                deepDive(urlCopy, types, threads, recursionLevel, theCurrentDepth);
+                deepDive(urlCopy, types, threads, recursionLevel, theCurrentDepth, archivePath);
             }
         }
 
         ++currentDepth;
 
-        // Now do multi-threaded download of all links
-        detail::download_all(processed, threads);
+        // Now do multi-threaded download of all links,
+        // archiving links if option to do so was supplied
+        ::boost::optional<std::ofstream> archiveStream;
+        if(!archivePath.empty()) {
+            archiveStream = std::ofstream(archivePath, std::ios::app);
+        }
+        download_all(processed, threads, archiveStream);
+        if(archiveStream) {
+            archiveStream->close();
+        }
     }
 }
 
@@ -257,6 +294,9 @@ int main(int argc, char *argv[]) {
     // Recursive depth
     int depth;
 
+    // Path of where to save download links
+    std::string archivePath;
+
     // Parse nput arguments
     namespace po = boost::program_options;
     po::options_description desc("Allowed options");
@@ -266,6 +306,7 @@ int main(int argc, char *argv[]) {
         ("type,t", po::value<std::vector<std::string>>(&types), "type of file to download")
         ("threads,n", po::value<int>(&threads)->default_value(10), "number of files to simultaneously download")
         ("depth,d", po::value<int>(&depth)->default_value(0), "recursive depth")
+        ("download-archive,a", po::value<std::string>(&archivePath), "archive file path")
     ;
 
     po::variables_map vm;
@@ -296,7 +337,7 @@ int main(int argc, char *argv[]) {
     detail::URL baseURL(url);
 
     int currentDepth = 0;
-    detail::deepDive(baseURL, types, threads, depth, currentDepth);
+    detail::deepDive(baseURL, types, threads, depth, currentDepth, archivePath);
 
     return 0;
 }
