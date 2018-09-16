@@ -34,7 +34,7 @@ Tested on a bunch of open directories.
 To compile, you need boost and libcurl, and then something like the following which works for me on mac:
 
 ```
-clang++ -std=c++11 bigd.cpp -lcurl -lboost_program_options -o bigd
+clang++ -std=c++11 bigd.cpp -lcurl -lboost_program_options -lboost_filesystem -lboost_system -o bigd
 ```
 
 Please create an issue if you find a bug / have an enhancement request. NB. I've not extensively tested this.
