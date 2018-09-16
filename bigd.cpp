@@ -197,7 +197,17 @@ namespace detail {
                   int & currentDepth)
     {
 
-        std::cout<<"Downloading from: "<<url.getWholeThing()<<std::endl;
+        auto const wholeThing = url.getWholeThing();
+        std::cout<<"Downloading from: "<<wholeThing<<std::endl;
+
+        // Make sure we don't visit same page multiple times.
+        // I'm generally not ok with function statics but I don't
+        // envisage any problems with this use-case.
+        static std::set<std::string> visited;
+        if(visited.find(wholeThing) != std::end(visited)) {
+            return;
+        }
+        visited.insert(wholeThing);
 
         // Extract all links from page at url
         auto const links = getLinks(url);
