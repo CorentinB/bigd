@@ -3,6 +3,8 @@
 // I'm not going to lose sleep over it.
 // Ben Jones in the year of 2018.
 
+#include <boost/filesystem/path.hpp>
+#include <boost/filesystem/operations.hpp>
 #include <boost/program_options.hpp>
 #include <boost/optional.hpp>
 #include <curl/curl.h>
@@ -134,7 +136,8 @@ namespace detail {
 
     void download_all(std::vector<URL> const & links,
                       int const nThreads,
-                      ::boost::optional<std::ofstream> & archiveStream)
+                      ::boost::optional<std::ofstream> & archiveStream,
+                      std::string const & outputFolder)
     {
         std::vector<std::thread> downloadThreads;
         std::atomic<long> counter(0);
@@ -143,8 +146,10 @@ namespace detail {
             // While threads not exhausted, created a
             // new download thread
             if(downloadThreads.size() < nThreads) {
-                downloadThreads.emplace_back([it]{
-                    std::ofstream file(it.getFilename(), std::ios::binary);
+                downloadThreads.emplace_back([it, outputFolder]{
+                    ::boost::filesystem::path p(outputFolder);
+                    p /= it.getFilename();
+                    std::ofstream file(p.string(), std::ios::binary);
                     pull_one_url(it.getWholeThing(), &file);
                     file.close();
                     std::cout<<"="<<std::flush;
@@ -214,7 +219,8 @@ namespace detail {
                   int const threads,
                   int const recursionLevel,
                   int & currentDepth,
-                  std::string const & archivePath)
+                  std::string const & archivePath,
+                  std::string const & outputFolder)
     {
 
         auto const wholeThing = url.getWholeThing();
@@ -261,7 +267,8 @@ namespace detail {
                     processed.push_back(urlCopy);
                 }
             } else if (currentDepth < recursionLevel) {
-                deepDive(urlCopy, types, threads, recursionLevel, theCurrentDepth, archivePath);
+                deepDive(urlCopy, types, threads, recursionLevel,
+                         theCurrentDepth, archivePath, outputFolder);
             }
         }
 
@@ -273,7 +280,7 @@ namespace detail {
         if(!archivePath.empty()) {
             archiveStream = std::ofstream(archivePath, std::ios::app);
         }
-        download_all(processed, threads, archiveStream);
+        download_all(processed, threads, archiveStream, outputFolder);
         if(archiveStream) {
             archiveStream->close();
         }
@@ -297,6 +304,9 @@ int main(int argc, char *argv[]) {
     // Path of where to save download links
     std::string archivePath;
 
+    // Path of where to save scraped content
+    std::string outputFolder;
+
     // Parse nput arguments
     namespace po = boost::program_options;
     po::options_description desc("Allowed options");
@@ -306,7 +316,8 @@ int main(int argc, char *argv[]) {
         ("type,t", po::value<std::vector<std::string>>(&types), "type of file to download")
         ("threads,n", po::value<int>(&threads)->default_value(10), "number of files to simultaneously download")
         ("depth,d", po::value<int>(&depth)->default_value(0), "recursive depth")
-        ("download-archive,a", po::value<std::string>(&archivePath), "archive file path")
+        ("download-archive,a", po::value<std::string>(&archivePath)->default_value(""), "archive file path")
+        ("folder,f", po::value<std::string>(&outputFolder)->default_value("./"), "folder of where to download content to")
     ;
 
     po::variables_map vm;
@@ -336,8 +347,32 @@ int main(int argc, char *argv[]) {
     // The base URL representing webpage
     detail::URL baseURL(url);
 
+    // Check that the user hasn't done something silly like
+    // specify a path that is actually a folder
+    if(!archivePath.empty()) {
+        if(::boost::filesystem::is_directory(archivePath)) {
+            std::cout<<"Bad archive path. Can't be a folder."<<std::endl;
+            exit(1);
+        }
+        std::cout<<"Archiving at path "<<archivePath<<std::endl;
+    }
+
+    // Create output folder if one specified
+    if(!outputFolder.empty()) {
+        try {
+            if(!::boost::filesystem::exists(outputFolder)) {
+                ::boost::filesystem::create_directory(outputFolder);
+            }
+            std::cout<<"Downloading content to "<<outputFolder<<std::endl;
+        } catch (...) {
+            std::cout<<"Bad output path."<<std::endl;
+            exit(1);
+        }
+    }
+
     int currentDepth = 0;
-    detail::deepDive(baseURL, types, threads, depth, currentDepth, archivePath);
+    detail::deepDive(baseURL, types, threads, depth, currentDepth, 
+                     archivePath, outputFolder);
 
     return 0;
 }

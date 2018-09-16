@@ -12,21 +12,23 @@ Allowed options:
   -n [ --threads ] arg (=10)    number of files to simultaneously download
   -d [ --depth ] arg (=0)       recursive depth
   -a [ --download-archive ] arg archive file path
+  -f [ --folder ] arg (=./)     folder of where to download content to
 ```
 
-For example:
+For example, to concurrently download files of type `mp3` from a given url:
 
 ```
 ./bigd --url <URL> --type mp3
 ```
+ 
+Notes:
 
-will concurrently download all files of type mp3 from url `<URL>`. All files are dumped to the current working directory.
-
-In addition, a threadpool is used to download `threads` number of files at any given moment.
-Hopefully therefore, bigd should prove quicker than tools like wget.
-
-Finally, recursive downloading is also supported with the `--depth` argument. By default,
-recursive downloading is disabled, as signified by a 'depth' value of zero.
+* Unless specified using the `--folder` flag, all content is downloaded to the current working directory.
+* A threadpool is used to concurrently scrape content (so should prove quicker than tools like wget).
+* The default threading value means that 10 files are simultenously downloaded, at a time. This can be overridden via the `--threads` flag.
+* A history of downloaded content (a 'download archive') will be written to a file at a path specified by the `--download-archive` flag. 
+* The download archive is also used to ensure that bigd doesn't attempt to re-download content already downloaded.
+* Recursive downloading is supported with the `--depth` argument but is disabled by default (a depth of zero).
 
 Tested on a bunch of open directories.
 
