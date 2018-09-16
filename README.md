@@ -18,9 +18,6 @@ For example:
 
 ```
 ./bigd --url <URL> --type mp3
-./bigd --url <URL> --type mp3 --threads 5
-./bigd --url <URL> --type mp3 --threads 5 --download-archive /path/to/archive
-./bigd --url <URL> --type mp3 --threads 5 --download-archive /path/to/archive --depth 1
 ```
 
 will download all files of type mp3 from url `<URL>`. 
