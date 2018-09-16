@@ -20,7 +20,7 @@ For example:
 ./bigd --url <URL> --type mp3
 ```
 
-will download all files of type mp3 from url `<URL>`. 
+will concurrently download all files of type mp3 from url `<URL>`. All files are dumped to the current working directory.
 
 In addition, a threadpool is used to download `threads` number of files at any given moment.
 Hopefully therefore, bigd should prove quicker than tools like wget.
@@ -29,8 +29,6 @@ Finally, recursive downloading is also supported with the `--depth` argument. By
 recursive downloading is disabled, as signified by a 'depth' value of zero.
 
 Tested on a bunch of open directories.
-
-Note: all files are dumped to the current working directory.
 
 To compile, you need boost and libcurl, and then something like the following which works for me on mac:
 
