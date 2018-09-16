@@ -1,4 +1,4 @@
-# bigd : a command-line tool for concurrently scraping files from a webpage.
+# bigd : a command-line tool for scraping files from a webpage.
 
 Usage examples are based on the following options:
 
@@ -21,6 +21,7 @@ For example, to concurrently download files of type `mp3` from a given url:
  
 Notes:
 
+* Multiple file types can be specified with a multiplicity of `--type` (e.g. `-t mp3 -t jpg` etc.)
 * Unless specified using the `--folder` flag, all content is downloaded to the current working directory.
 * A threadpool is used to concurrently scrape content (so should prove quicker than tools like wget).
 * The default threading value results in simulataenous downloading of 10 files. This can be overridden via the `--threads` flag.
