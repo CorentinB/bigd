@@ -25,7 +25,7 @@ Notes:
 * Unless specified using the `--folder` flag, all content is downloaded to the current working directory.
 * A threadpool is used to concurrently scrape content (so should prove quicker than tools like wget).
 * The default threading value results in simulataenous downloading of 10 files. This can be overridden via the `--threads` flag.
-* A history of downloaded content (a 'download archive') will be written to a file at a path specified by the `--download-archive` flag. 
+* An optional history of downloaded content (a 'download archive') will be written to a file when specified by the `--download-archive` flag. 
 * The download archive is also used to ensure that bigd doesn't attempt to re-download content already downloaded.
 * Recursive downloading is supported with the `--depth` argument but is disabled by default (a depth of zero).
 
