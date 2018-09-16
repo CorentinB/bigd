@@ -181,7 +181,7 @@ namespace detail {
 
     bool beginsWithHTTP(std::string const & str)
     {
-        if(str.size() > 4) {
+        if(str.size() >= 4) {
             return str[0] == 'h' &&
                    str[1] == 't' &&
                    str[2] == 't' &&
