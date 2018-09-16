@@ -1,6 +1,6 @@
 # bigd : a concurrent file downloader
 
-This is a command-line tool that you can use to concurrently scrape files from a webpage.
+bigd is a command-line tool for concurrently scraping files from a webpage.
 
 Usage examples are based on the following options:
 
