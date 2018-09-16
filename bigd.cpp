@@ -167,6 +167,17 @@ namespace detail {
         return extract_hyperlinks(stream.str());
     }
 
+    bool beginsWithHTTP(std::string const & str)
+    {
+        if(str.size() > 4) {
+            return str[0] == 'h' &&
+                   str[1] == 't' &&
+                   str[2] == 't' &&
+                   str[3] == 'p';
+        }
+        return false;
+    }
+
     void deepDive(URL const & url, 
                   std::vector<std::string> const & types,
                   int const threads,
@@ -185,8 +196,13 @@ namespace detail {
         std::vector<detail::URL> processed;
         for (auto const & it : links) {
             auto urlCopy = url;
-            urlCopy.addPathBit(it);
-            if(detail::hasType(it, types)) {
+            // Check if external or internal link
+            if(!beginsWithHTTP(it)) {
+                urlCopy.addPathBit(it);
+            } else {
+                urlCopy = detail::URL(it);
+            }
+            if(detail::hasType(urlCopy.getFilename(), types)) {
 
                 // Find filename part, it multiple
                 // path parts. Ignore parent parts.
@@ -203,7 +219,6 @@ namespace detail {
         // Now do multi-threaded download of all links
         detail::download_all(processed, threads);
     }
-
 }
 
 int main(int argc, char *argv[]) {
