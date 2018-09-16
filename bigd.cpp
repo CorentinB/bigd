@@ -78,7 +78,19 @@ namespace detail {
         std::string getFilename() const
         {
             auto found = m_path.find_last_of("/");
-            return {std::begin(m_path) + found + 1, std::end(m_path)};
+            if(found != std::string::npos) {
+                return {std::begin(m_path) + found + 1, std::end(m_path)};
+            }
+            return "";
+        }
+
+        std::string getExtension() const
+        {
+            auto found = m_path.find_last_of(".");
+            if(found != std::string::npos) {
+                return {std::begin(m_path) + found + 1, std::end(m_path)};
+            }
+            return "";
         }
 
         std::string getWholeThing() const
@@ -149,11 +161,11 @@ namespace detail {
         std::cout<<std::endl;
     }
 
-    bool hasType(std::string const & toCheck,
+    bool hasType(URL const & url,
                  std::vector<std::string> const & types)
     {
         for(auto const & type : types) {
-            if(toCheck.find(type) != std::string::npos) {
+            if(url.getExtension() == type) {
                 return true;
             }
         }
@@ -202,7 +214,7 @@ namespace detail {
             } else {
                 urlCopy = detail::URL(it);
             }
-            if(detail::hasType(urlCopy.getFilename(), types)) {
+            if(detail::hasType(urlCopy, types)) {
 
                 // Find filename part, it multiple
                 // path parts. Ignore parent parts.
