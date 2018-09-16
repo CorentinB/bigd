@@ -38,10 +38,14 @@ namespace detail {
             // find third slash
             auto found = find_nth(url, 0, "/", 2);
             if(found == -1) {
-                throw std::runtime_error("No path component!");
+                // Edge-case not found
+                m_path = "";
+                m_base.assign(std::begin(url), std::end(url));
+            } else {
+                m_path.assign(std::begin(url) + found, std::end(url));
+                m_base.assign(std::begin(url), std::begin(url) + found);
             }
-            m_base.assign(std::begin(url), std::begin(url) + found);
-            m_path.assign(std::begin(url) + found, std::end(url));
+            
         }
 
         URL(std::string const & base,
@@ -113,7 +117,8 @@ namespace detail {
 
     std::set<std::string> extract_hyperlinks(std::string const & text)
     {
-        static std::regex const hl_regex( "<a href=\"(.*?)\">", std::regex_constants::icase  ) ;
+        //<a\\s+href\\s*=\\s*(\"[^\"]*\"|[^\\s>]*)\\s*>
+        static std::regex const hl_regex( "href=\"(.*?)\"", std::regex_constants::icase  ) ;
         return { std::sregex_token_iterator( text.begin(), text.end(), hl_regex, 1 ),
                  std::sregex_token_iterator{} } ;
     }
